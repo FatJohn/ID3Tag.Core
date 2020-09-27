@@ -49,7 +49,7 @@ namespace ID3Tag.Core.TagParser
                     {
                         Title = id3string.Substring(_TitleIndex, _TitleLength),
                         Artist = id3string.Substring(_ArtistIndex, _ArtistLength),
-                        Album = id3string.Substring(_TitleIndex, _TitleLength),
+                        Album = id3string.Substring(_AlbumIndex, _AlbumLength),
                         Year = id3string.Substring(_YearIndex, _YearLength),
                         Comment = id3string.Substring(_CommentIndex, _CommentLength),
                         Genre = id3buffer[_GenreIdIndex].ToString()
