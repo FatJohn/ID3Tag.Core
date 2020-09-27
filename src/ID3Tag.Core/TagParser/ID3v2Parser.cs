@@ -37,10 +37,6 @@ namespace ID3Tag.Core.TagParser
         //ExtendedHeader Fields
         private byte _TagRestrictionField;
 
-        //List of Frames and FrameHashes that were found
-        private List<ID3v2Frame> _Frames = new List<ID3v2Frame>();
-        private Hashtable _FrameHashes = new Hashtable();
-
         /// <summary>
         /// Reads in the given file at the filepath and returns an object to get all the ID3 Content.
         /// </summary>
@@ -59,15 +55,16 @@ namespace ID3Tag.Core.TagParser
                 {
                     ret = new ID3TagObject()
                     {
-                         ID3v2Parser = this,
-                         Type = ID3Type.ID3v2
+                         Type = ID3Type.ID3v2,
+                         Frames = new Dictionary<string, List<ID3v2Frame>>()
                     };
+
                     ReadHeader(binaryReader);
 
                     if (_ExtendedHeaderFlag)
                         ReadExtendedHeader(binaryReader);
 
-                    ReadFrames(binaryReader);
+                    ReadFrames(binaryReader, ret);
 
                     if (_FooterPresentTag)
                         ReadFooter(binaryReader);
@@ -250,19 +247,26 @@ namespace ID3Tag.Core.TagParser
             }
         }
 
-        private void ReadFrames(BinaryReader binaryReader)
+        private void ReadFrames(BinaryReader binaryReader, ID3TagObject ret)
         {
             ID3v2Frame frame;
             do
             {
-                frame = ID3v2Frame.ReadFrame(binaryReader, _MajorVersion);
+                frame = ReadFrame(binaryReader, _MajorVersion);
                 if (frame.Padding)
                 {
                     binaryReader.BaseStream.Position = Convert.ToInt64(_HeaderSize);
                     break;
                 }
-                _Frames.Add(frame);
-                _FrameHashes.Add(frame.Name, frame);
+                
+                if (ret.Frames.ContainsKey(frame.Name))
+                {
+                    ret.Frames[frame.Name].Add(frame);
+                }
+                else
+                {
+                    ret.Frames.Add(frame.Name, new List<ID3v2Frame>() { frame });
+                }
 
             } while (binaryReader.BaseStream.Position <= Convert.ToInt64(_HeaderSize));
         }
@@ -271,80 +275,121 @@ namespace ID3Tag.Core.TagParser
         {
             if (_MajorVersion == 2)
             {
-                id3TagObject.Title = GetFrameDataByHeaderName(ID3v2Tags.TITLE_HEADER_V2, false);
-                id3TagObject.Artist = GetFrameDataByHeaderName(ID3v2Tags.ARTIST_HEADER_V2, false);
-                id3TagObject.Album = GetFrameDataByHeaderName(ID3v2Tags.ALBUM_HEADER_V2, false);
-                id3TagObject.Year = GetFrameDataByHeaderName(ID3v2Tags.YEAR_HEADER_V2, false);
-                string[] tracks = GetFrameDataByHeaderName(ID3v2Tags.TRACK_HEADER_V2, false).Split('/');
+                id3TagObject.Title = id3TagObject.GetText(ID3v2Tags.TITLE_HEADER_V2, false);
+                id3TagObject.Artist = id3TagObject.GetText(ID3v2Tags.ARTIST_HEADER_V2, false);
+                id3TagObject.Album = id3TagObject.GetText(ID3v2Tags.ALBUM_HEADER_V2, false);
+                id3TagObject.Year = id3TagObject.GetText(ID3v2Tags.YEAR_HEADER_V2, false);
+                string[] tracks = id3TagObject.GetText(ID3v2Tags.TRACK_HEADER_V2, false).Split('/');
                 if (tracks.Length > 0 && !string.IsNullOrEmpty(tracks[0]))
                     id3TagObject.Track = Convert.ToInt32(tracks[0]);
                 if (tracks.Length > 1 && !string.IsNullOrEmpty(tracks[1]))
                     id3TagObject.TotalTracks = Convert.ToInt32(tracks[1]);
-                //if (!string.IsNullOrEmpty(GetFrameDataByHeaderName(GENRE_HEADER_V2, false)))
-                    id3TagObject.Genre = GetFrameDataByHeaderName(ID3v2Tags.GENRE_HEADER_V2, false);
-                id3TagObject.Comment = GetFrameDataByHeaderName(ID3v2Tags.COMMENT_HEADER_V2, false);
+                //if (!string.IsNullOrEmpty(id3TagObject.GetText(GENRE_HEADER_V2, false)))
+                    id3TagObject.Genre = id3TagObject.GetText(ID3v2Tags.GENRE_HEADER_V2, false);
+                id3TagObject.Comment = id3TagObject.GetText(ID3v2Tags.COMMENT_HEADER_V2, false);
             }
             else if (_MajorVersion > 2)
             {
 
-                id3TagObject.BeatsPerMinute = GetFrameDataByHeaderName(ID3v2Tags.BPM_HEADER_V34, false);
-                id3TagObject.Length = GetFrameDataByHeaderName(ID3v2Tags.LENGTH_HEADER_V34, false);
+                id3TagObject.BeatsPerMinute = id3TagObject.GetText(ID3v2Tags.BPM_HEADER_V34, false);
+                id3TagObject.Length = id3TagObject.GetText(ID3v2Tags.LENGTH_HEADER_V34, false);
 
-                id3TagObject.Artist = GetFrameDataByHeaderName(ID3v2Tags.ARTIST_HEADER_V34, false);
-                id3TagObject.Album = GetFrameDataByHeaderName(ID3v2Tags.ALBUM_HEADER_V34, false);
-                id3TagObject.Comment = GetFrameDataByHeaderName(ID3v2Tags.COMMENT_HEADER_V34, false);
-                id3TagObject.Composer = GetFrameDataByHeaderName(ID3v2Tags.COMPOSER_HEADER_V34, false);
-                id3TagObject.Copyright = GetFrameDataByHeaderName(ID3v2Tags.COPYRIGHT_HEADER_V34, false);
-                id3TagObject.Language = GetFrameDataByHeaderName(ID3v2Tags.LANGUAGE_HEADER_V34, false);
-                id3TagObject.Textwriter = GetFrameDataByHeaderName(ID3v2Tags.TEXTWRITER_HEADER_V34, false);
-                id3TagObject.Title = GetFrameDataByHeaderName(ID3v2Tags.TITLE_HEADER_V34, false);
-                id3TagObject.Year = GetFrameDataByHeaderName(ID3v2Tags.YEAR_HEADER_V34, false);
+                id3TagObject.Artist = id3TagObject.GetText(ID3v2Tags.ARTIST_HEADER_V34, false);
+                id3TagObject.Album = id3TagObject.GetText(ID3v2Tags.ALBUM_HEADER_V34, false);
+                id3TagObject.Comment = id3TagObject.GetText(ID3v2Tags.COMMENT_HEADER_V34, false);
+                id3TagObject.Composer = id3TagObject.GetText(ID3v2Tags.COMPOSER_HEADER_V34, false);
+                id3TagObject.Copyright = id3TagObject.GetText(ID3v2Tags.COPYRIGHT_HEADER_V34, false);
+                id3TagObject.Language = id3TagObject.GetText(ID3v2Tags.LANGUAGE_HEADER_V34, false);
+                id3TagObject.Textwriter = id3TagObject.GetText(ID3v2Tags.TEXTWRITER_HEADER_V34, false);
+                id3TagObject.Title = id3TagObject.GetText(ID3v2Tags.TITLE_HEADER_V34, false);
+                id3TagObject.Year = id3TagObject.GetText(ID3v2Tags.YEAR_HEADER_V34, false);
 
-                string[] tracks = GetFrameDataByHeaderName(ID3v2Tags.TRACK_HEADER_V34, true).Split('/');
+                string[] tracks = id3TagObject.GetText(ID3v2Tags.TRACK_HEADER_V34, true).Split('/');
                if (tracks.Length > 0 && !string.IsNullOrEmpty(tracks[0]))
                     id3TagObject.Track = Convert.ToInt32(tracks[0]);
                 if (tracks.Length > 1 && !string.IsNullOrEmpty(tracks[1]))
                     id3TagObject.TotalTracks = Convert.ToInt32(tracks[1]);
-                if (!string.IsNullOrEmpty(GetFrameDataByHeaderName(ID3v2Tags.GENRE_HEADER_V34, false)))
-                    id3TagObject.Genre = GetFrameDataByHeaderName(ID3v2Tags.GENRE_HEADER_V34, false);
+                if (!string.IsNullOrEmpty(id3TagObject.GetText(ID3v2Tags.GENRE_HEADER_V34, false)))
+                    id3TagObject.Genre = id3TagObject.GetText(ID3v2Tags.GENRE_HEADER_V34, false);
             }
         }
 
-        /// <summary>
-        /// Allows you to get the content of a frame by yourself
-        /// </summary>
-        /// <param name="frameKey">Framekeys: http://id3.org/id3v2.4.0-frames </param>
-        /// <param name="useEncoding">If the framekey has an encoding set this value to true. Default value is false</param>
-        /// <returns></returns>
-
-        internal string GetFrameDataByHeaderName(string frameKey, bool useEncoding)
+        private static ID3v2Frame ReadFrame(BinaryReader binaryReader, int version)
         {
-            int i = 0;
-            Encoding charEncoding = Encoding.Unicode;
-            if (!useEncoding)
-                i = 3;
-                
-            if (_FrameHashes.Contains(frameKey))
+            ID3v2Frame ret = new ID3v2Frame();
+
+            //Verion 3 and 4 of the namesize is always 4.
+            int nameSize = 4;
+
+            if (version == 2)
             {
-                byte[] bytes = ((ID3v2Frame)_FrameHashes[frameKey]).FrameContent;
-                StringBuilder stringBuilder = new StringBuilder();
-                byte encoding;
-
-                for (int j = i; j < bytes.Length; j++)
-                {
-                    //If byte value is 0 skip it else you get string like 'T E S T ' instea of 'TEST'
-                    if (bytes[j] == 0)
-                        continue;
-
-                    if (j == 0)
-                        encoding = bytes[j];
-                    else
-                        stringBuilder.Append(Convert.ToChar(bytes[j]));
-                }
-               return stringBuilder.ToString();
-                //return stringBuilder.ToString();
+                nameSize = 3;
             }
-            return "";
+
+            ret.Name = new string(binaryReader.ReadChars(nameSize));
+            ret.MajorVersion = version;
+
+            StringBuilder stringBuilder = new StringBuilder(0, nameSize);
+            for (int i = 0; i < nameSize; i++)
+            {
+                stringBuilder.Append(Convert.ToChar(0));
+            }
+
+            if (ret.Name.Equals(stringBuilder.ToString()))
+            {
+                ret.Padding = true;
+                return ret;
+            }
+
+            //Get the size of the frame
+            ret.FrameSize = GetFrameSize(binaryReader, version);
+
+            //Read Tags
+            if (version == 3)
+            {
+                bool[] bits = BitReader.GetBitArrayByByte(binaryReader.ReadByte());
+                ret.TagAlterPreservation = bits[0];
+                ret.FileAlterPreservation = bits[1];
+                ret.ReadOnly = bits[2];
+
+                bits = BitReader.GetBitArrayByByte(binaryReader.ReadByte());
+                ret.Compression = bits[0];
+                ret.Encryption = bits[1];
+                ret.GroupingIdentity = bits[2];
+            }
+            else if (version == 4)
+            {
+                bool[] bits = BitReader.GetBitArrayByByte(binaryReader.ReadByte());
+                ret.TagAlterPreservation = bits[1];
+                ret.FileAlterPreservation = bits[2];
+                ret.ReadOnly = bits[3];
+
+                bits = BitReader.GetBitArrayByByte(binaryReader.ReadByte());
+                ret.GroupingIdentity = bits[0];
+                ret.Compression = bits[4];
+                ret.Encryption = bits[5];
+                ret.Unsynchronisation = bits[6];
+                ret.DataLengthIndicator = bits[7];
+            }
+
+            if (ret.FrameSize > 0)
+                ret.FrameContent = binaryReader.ReadBytes(Convert.ToInt32(ret.FrameSize));
+
+            return ret;
+        }
+
+        private static int GetFrameSize(BinaryReader binaryReader, int version)
+        {
+            int bytesToRead = 3;
+            //Version 2s size is always 3 Bytes, Everything 2 > is 4 bytes.
+            if (version > 2)
+            {
+                bytesToRead = 4;
+            }
+
+            var bytes = binaryReader.ReadBytes(bytesToRead);
+            Array.Reverse(bytes);
+            return BitConverter.ToInt32(bytes, 0);
         }
     }
 }
